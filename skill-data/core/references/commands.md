@@ -199,6 +199,7 @@ agent-browser network requests --filter api    # Filter requests
 agent-browser tab                              # List tabs with tabId and label
 agent-browser tab new [url]                    # New tab
 agent-browser tab new --label docs [url]       # New tab with a memorable label
+agent-browser tab new --window-id 42 [url]     # New tab in an exact native Chrome window
 agent-browser tab t2                           # Switch to tab by id
 agent-browser tab docs                         # Switch to tab by label
 agent-browser tab close                        # Close current tab
@@ -222,6 +223,8 @@ agent-browser tab close docs             # close by label
 ```
 
 Labels are never auto-generated, never rewritten on navigation, and must be unique within a session. To interact with another tab, switch to it first: the daemon maintains a single active tab, so refs (`@eN`) belong to the tab that was active when the snapshot ran.
+
+`tab new --window-id <id>` creates the tab in that exact native Chrome window without relying on desktop focus. It requires an installed extension context that can call `chrome.tabs.create`. The new tab becomes the daemon's active tab.
 
 ## Frames
 

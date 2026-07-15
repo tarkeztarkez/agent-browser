@@ -280,11 +280,14 @@ Headless Chromium screenshots hide native scrollbars for consistent image output
 ```bash
 agent-browser tab                      # list open tabs (with stable tabId)
 agent-browser tab new https://docs...  # open a new tab (and switch to it)
+agent-browser tab new --window-id 42 https://docs...  # open in an exact native Chrome window
 agent-browser tab t2                   # switch to tab t2
 agent-browser tab close t2             # close tab t2
 ```
 
 Stable `tabId`s mean `t2` points at the same tab across commands even when other tabs open or close. After switching, refs from a prior snapshot on a different tab no longer apply — re-snapshot.
+
+When connected to a multi-window Chrome instance, use `tab new --window-id <id>` to avoid relying on desktop focus. It creates the tab through an installed extension's `chrome.tabs` API and makes the exact new target active in agent-browser.
 
 ### Run multiple browsers in parallel
 

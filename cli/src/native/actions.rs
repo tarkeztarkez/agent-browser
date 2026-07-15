@@ -2068,7 +2068,7 @@ pub async fn execute_command(cmd: &Value, state: &mut DaemonState) -> Value {
 /// subsequent navigations don't hijack the user's existing tabs.
 async fn connect_auto_with_fresh_tab() -> Result<BrowserManager, String> {
     let mut mgr = BrowserManager::connect_auto().await?;
-    mgr.tab_new(None, None).await?;
+    mgr.tab_new(None, None, None).await?;
     let session_id = mgr.active_session_id()?.to_string();
     let _ = mgr
         .client
@@ -3697,7 +3697,7 @@ async fn handle_click(cmd: &Value, state: &mut DaemonState) -> Result<Value, Str
 
         let mgr = state.browser.as_mut().ok_or("Browser not launched")?;
         state.ref_map.clear();
-        mgr.tab_new(Some(&href), None).await?;
+        mgr.tab_new(Some(&href), None, None).await?;
 
         return Ok(json!({ "clicked": selector, "newTab": true, "url": href }));
     }
@@ -4878,10 +4878,11 @@ async fn handle_tab_new(cmd: &Value, state: &mut DaemonState) -> Result<Value, S
     let mgr = state.browser.as_mut().ok_or("Browser not launched")?;
     let url = cmd.get("url").and_then(|v| v.as_str());
     let label = cmd.get("label").and_then(|v| v.as_str());
+    let window_id = cmd.get("windowId").and_then(|v| v.as_i64());
     state.ref_map.clear();
     state.iframe_sessions.clear();
     state.active_frame_id = None;
-    mgr.tab_new(url, label).await
+    mgr.tab_new(url, label, window_id).await
 }
 
 async fn handle_tab_switch(cmd: &Value, state: &mut DaemonState) -> Result<Value, String> {

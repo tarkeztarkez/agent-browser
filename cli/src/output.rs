@@ -2285,7 +2285,7 @@ agent-browser tab - Manage browser tabs
 
 Usage: agent-browser tab [operation] [args]
 
-Manage browser tabs in the current window. Stable tab ids look like `t1`,
+Manage browser tabs. Stable tab ids look like `t1`,
 `t2`, `t3`. An id is never reused within a session, so scripts can keep
 referring to the same tab across commands. Optional user-assigned labels
 (e.g. `docs`, `app`) are interchangeable with ids everywhere a tab ref is
@@ -2295,6 +2295,7 @@ Operations:
   list                       List open tabs with their ids and labels (default)
   new [url]                  Open a new tab
   new --label <name> [url]   Open a new tab with a label like `docs` or `app`
+  new --window-id <id> [url] Open in an exact native Chrome window
   close [t<N>|label]         Close a tab (current if no ref given)
   <t<N>|label>               Switch to a tab by id or label
 
@@ -2308,6 +2309,7 @@ Examples:
   agent-browser tab new
   agent-browser tab new https://example.com
   agent-browser tab new --label docs https://docs.example.com
+  agent-browser tab new --window-id 42 --label task https://example.com
   agent-browser tab t2
   agent-browser tab docs
   agent-browser tab close

@@ -1483,6 +1483,7 @@ fn parse_command_inner(args: &[String], flags: &Flags) -> Result<Value, ParseErr
                     // Accepted forms:
                     //   tab new [url]
                     //   tab new --label <name> [url]
+                    //   tab new --window-id <id> [url]
                     //   tab new [url] --label <name>
                     let mut cmd = json!({ "id": id, "action": "tab_new" });
                     let mut i = 1;
@@ -1496,6 +1497,32 @@ fn parse_command_inner(args: &[String], flags: &Flags) -> Result<Value, ParseErr
                                 cmd["label"] = json!(name);
                                 i += 2;
                             }
+                            "--window-id" => {
+                                let value =
+                                    rest.get(i + 1).ok_or(ParseError::MissingArguments {
+                                        context: "tab new --window-id".to_string(),
+                                        usage: "tab new --window-id <id> [url]",
+                                    })?;
+                                let window_id =
+                                    value.parse::<i64>().map_err(|_| ParseError::InvalidValue {
+                                        message: format!(
+                                            "Invalid native browser window id: {}",
+                                            value
+                                        ),
+                                        usage: "tab new --window-id <positive-id> [url]",
+                                    })?;
+                                if window_id <= 0 {
+                                    return Err(ParseError::InvalidValue {
+                                        message: format!(
+                                            "Native browser window id must be positive: {}",
+                                            value
+                                        ),
+                                        usage: "tab new --window-id <positive-id> [url]",
+                                    });
+                                }
+                                cmd["windowId"] = json!(window_id);
+                                i += 2;
+                            }
                             other if !other.starts_with("--") && cmd.get("url").is_none() => {
                                 cmd["url"] = json!(other);
                                 i += 1;
@@ -1503,7 +1530,7 @@ fn parse_command_inner(args: &[String], flags: &Flags) -> Result<Value, ParseErr
                             other => {
                                 return Err(ParseError::UnknownSubcommand {
                                     subcommand: other.to_string(),
-                                    valid_options: &["--label", "<url>"],
+                                    valid_options: &["--label", "--window-id", "<url>"],
                                 });
                             }
                         }
@@ -4027,6 +4054,32 @@ mod tests {
         .unwrap();
         assert_eq!(cmd["url"], "https://docs.example.com");
         assert_eq!(cmd["label"], "docs");
+    }
+
+    #[test]
+    fn test_tab_new_with_window_id() {
+        let cmd = parse_command(
+            &args("tab new --window-id 42 --label docs https://docs.example.com"),
+            &default_flags(),
+        )
+        .unwrap();
+        assert_eq!(cmd["windowId"], 42);
+        assert_eq!(cmd["label"], "docs");
+        assert_eq!(cmd["url"], "https://docs.example.com");
+    }
+
+    #[test]
+    fn test_tab_new_rejects_invalid_window_id() {
+        assert!(parse_command(
+            &args("tab new --window-id nope https://example.com"),
+            &default_flags(),
+        )
+        .is_err());
+        assert!(parse_command(
+            &args("tab new --window-id 0 https://example.com"),
+            &default_flags(),
+        )
+        .is_err());
     }
 
     #[test]

@@ -222,6 +222,7 @@ See [Network](/network) for pre-navigation routing, request filters, HAR export,
 agent-browser tab                              # List tabs (each row shows tabId and label)
 agent-browser tab new [url]                    # New tab
 agent-browser tab new --label docs [url]       # New tab with a user-assigned label
+agent-browser tab new --window-id 42 [url]     # New tab in an exact native Chrome window
 agent-browser tab <t<N>|label>                 # Switch to a tab by id or label
 agent-browser tab close [t<N>|label]           # Close a tab (defaults to active)
 agent-browser window new                       # Open new browser window
@@ -245,6 +246,8 @@ agent-browser tab close docs    # close by label
 ```
 
 Labels are never auto-generated and never rewritten on navigation — an agent that names a tab `docs` keeps that name until the tab is closed. Labels are unique within a session; creating a second tab with an existing label errors.
+
+Use `tab new --window-id <id>` when connected to a multi-window Chrome instance and desktop focus must not determine the destination window. It requires an installed extension context that can call `chrome.tabs.create`. The exact new tab becomes agent-browser's active tab.
 
 Refs (`@e1`, etc.) are scoped to the tab that was active when the snapshot ran, so switch tabs first, then snapshot and interact:
 

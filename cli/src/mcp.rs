@@ -1214,8 +1214,16 @@ fn parity_tools() -> Vec<Value> {
         tool(
             TOOL_TAB_NEW,
             "Tab new",
-            "Open a new tab.",
-            json!({ "url": { "type": "string" }, "label": { "type": "string" } }),
+            "Open a new tab, optionally in an exact native browser window.",
+            json!({
+                "url": { "type": "string" },
+                "label": { "type": "string" },
+                "windowId": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Native Chrome window id. Requires an installed extension context with access to chrome.tabs.create."
+                }
+            }),
             &[],
         ),
         tool(TOOL_TAB_LIST, "Tab list", "List tabs.", json!({}), &[]),
@@ -2843,6 +2851,10 @@ fn call_cookies_set_curl(arguments: &Value) -> Result<Value, ProtocolError> {
 }
 
 fn call_tab_new(arguments: &Value) -> Result<Value, ProtocolError> {
+    call_cli_tool(arguments, tab_new_args(arguments)?, None)
+}
+
+fn tab_new_args(arguments: &Value) -> Result<Vec<String>, ProtocolError> {
     let mut args = vec!["tab".to_string(), "new".to_string()];
     if let Some(url) = optional_string(arguments, "url")? {
         args.push(url);
@@ -2851,7 +2863,16 @@ fn call_tab_new(arguments: &Value) -> Result<Value, ProtocolError> {
         args.push("--label".to_string());
         args.push(label);
     }
-    call_cli_tool(arguments, args, None)
+    if let Some(window_id) = optional_u64(arguments, "windowId")? {
+        if window_id == 0 {
+            return Err(ProtocolError::invalid_params(
+                "windowId must be a positive native browser window id",
+            ));
+        }
+        args.push("--window-id".to_string());
+        args.push(window_id.to_string());
+    }
+    Ok(args)
 }
 
 fn call_profiler_start(arguments: &Value) -> Result<Value, ProtocolError> {
@@ -3964,6 +3985,29 @@ mod tests {
         .unwrap();
 
         assert_eq!(args, vec!["click", "@e1", "--new-tab"]);
+    }
+
+    #[test]
+    fn tab_new_args_include_native_window_id() {
+        let args = tab_new_args(&json!({
+            "url": "https://example.com",
+            "label": "task",
+            "windowId": 42,
+        }))
+        .unwrap();
+
+        assert_eq!(
+            args,
+            vec![
+                "tab",
+                "new",
+                "https://example.com",
+                "--label",
+                "task",
+                "--window-id",
+                "42",
+            ]
+        );
     }
 
     #[test]

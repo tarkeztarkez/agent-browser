@@ -1011,6 +1011,7 @@ impl BrowserManager {
         &mut self,
         url: Option<&str>,
         label: Option<&str>,
+        window_id: Option<i64>,
     ) -> Result<Value, String> {
         if let Some(label) = label {
             if !is_valid_label(label) {
@@ -1031,23 +1032,29 @@ impl BrowserManager {
 
         let target_url = url.unwrap_or("about:blank");
 
-        let result: CreateTargetResult = self
-            .client
-            .send_command_typed(
-                "Target.createTarget",
-                &CreateTargetParams {
-                    url: target_url.to_string(),
-                },
-                None,
-            )
-            .await?;
+        let target_id = match window_id {
+            Some(window_id) => self.create_target_in_window(window_id).await?,
+            None => {
+                let result: CreateTargetResult = self
+                    .client
+                    .send_command_typed(
+                        "Target.createTarget",
+                        &CreateTargetParams {
+                            url: target_url.to_string(),
+                        },
+                        None,
+                    )
+                    .await?;
+                result.target_id
+            }
+        };
 
         let attach: AttachToTargetResult = self
             .client
             .send_command_typed(
                 "Target.attachToTarget",
                 &AttachToTargetParams {
-                    target_id: result.target_id.clone(),
+                    target_id: target_id.clone(),
                     flatten: true,
                 },
                 None,
@@ -1056,6 +1063,19 @@ impl BrowserManager {
 
         self.enable_domains(&attach.session_id).await?;
 
+        if window_id.is_some() {
+            self.client
+                .send_command_typed::<_, Value>(
+                    "Page.navigate",
+                    &PageNavigateParams {
+                        url: target_url.to_string(),
+                        referrer: None,
+                    },
+                    Some(&attach.session_id),
+                )
+                .await?;
+        }
+
         let tab_id = self.next_tab_id;
         self.next_tab_id += 1;
         let index = self.pages.len();
@@ -1063,7 +1083,7 @@ impl BrowserManager {
         self.pages.push(PageInfo {
             tab_id,
             label: label.clone(),
-            target_id: result.target_id,
+            target_id,
             session_id: attach.session_id,
             url: target_url.to_string(),
             title: String::new(),
@@ -1076,7 +1096,124 @@ impl BrowserManager {
             "label": label,
             "url": target_url,
             "total": self.pages.len(),
+            "windowId": window_id,
         }))
+    }
+
+    /// Create a page in an exact native Chrome window without relying on which
+    /// desktop window or tab is currently focused. CDP has no window id field
+    /// on `Target.createTarget`, so this uses `chrome.tabs.create` from an
+    /// installed extension context and then resolves the resulting CDP target.
+    async fn create_target_in_window(&self, window_id: i64) -> Result<String, String> {
+        let marker = format!("about:blank#agent-browser-{}", uuid::Uuid::new_v4());
+        let targets: GetTargetsResult = self
+            .client
+            .send_command_typed("Target.getTargets", &json!({}), None)
+            .await?;
+        let mut extension_targets: Vec<_> = targets
+            .target_infos
+            .into_iter()
+            .filter(|target| target.url.starts_with("chrome-extension://"))
+            .collect();
+        extension_targets.sort_by_key(|target| target.target_type != "background_page");
+
+        let marker_js = serde_json::to_string(&marker).map_err(|error| error.to_string())?;
+        let expression = format!(
+            "new Promise(resolve => chrome.tabs.create(\
+             {{windowId:{window_id},url:{marker_js},active:false}}, tab => \
+             resolve(chrome.runtime.lastError \
+             ? {{error:chrome.runtime.lastError.message}} \
+             : {{tabId:tab.id}})))"
+        );
+        let mut last_error = None;
+        let mut created = false;
+
+        for extension in extension_targets {
+            let attach: AttachToTargetResult = match self
+                .client
+                .send_command_typed(
+                    "Target.attachToTarget",
+                    &AttachToTargetParams {
+                        target_id: extension.target_id,
+                        flatten: true,
+                    },
+                    None,
+                )
+                .await
+            {
+                Ok(attach) => attach,
+                Err(error) => {
+                    last_error = Some(error);
+                    continue;
+                }
+            };
+            let evaluation: Result<EvaluateResult, String> = self
+                .client
+                .send_command_typed(
+                    "Runtime.evaluate",
+                    &EvaluateParams {
+                        expression: expression.clone(),
+                        return_by_value: Some(true),
+                        await_promise: Some(true),
+                    },
+                    Some(&attach.session_id),
+                )
+                .await;
+            let _ = self
+                .client
+                .send_command(
+                    "Target.detachFromTarget",
+                    Some(json!({ "sessionId": attach.session_id })),
+                    None,
+                )
+                .await;
+
+            match evaluation {
+                Ok(result) if result.exception_details.is_none() => {
+                    if let Some(value) = result.result.value {
+                        if value.get("tabId").is_some() {
+                            created = true;
+                            break;
+                        }
+                        if let Some(error) = value.get("error").and_then(Value::as_str) {
+                            last_error = Some(error.to_string());
+                        }
+                    }
+                }
+                Ok(result) => {
+                    last_error = result.exception_details.map(|details| details.text);
+                }
+                Err(error) => last_error = Some(error),
+            }
+        }
+
+        if !created {
+            return Err(format!(
+                "Could not create a tab in native window {window_id} through an installed Chrome extension{}",
+                last_error
+                    .map(|error| format!(": {error}"))
+                    .unwrap_or_default()
+            ));
+        }
+
+        for _ in 0..100 {
+            let targets: GetTargetsResult = self
+                .client
+                .send_command_typed("Target.getTargets", &json!({}), None)
+                .await?;
+            if let Some(target) = targets
+                .target_infos
+                .into_iter()
+                .find(|target| target.target_type == "page" && target.url == marker)
+            {
+                return Ok(target.target_id);
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+
+        Err(format!(
+            "Created a tab in native window {window_id}, but its CDP target did not appear"
+        ))
     }
 
     pub async fn tab_switch(&mut self, index: usize) -> Result<Value, String> {
