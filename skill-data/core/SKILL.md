@@ -289,6 +289,8 @@ Stable `tabId`s mean `t2` points at the same tab across commands even when other
 
 When connected to a multi-window Chrome instance, use `tab new --window-id <id>` to avoid relying on desktop focus. It creates the tab through an installed extension's `chrome.tabs` API and makes the exact new target active in agent-browser.
 
+Before interacting with a tab that may belong to another native window, use `tab ensure-window --window-id <id>`. It leaves in-window tabs alone and otherwise copies the active URL into that window without touching the source tab.
+
 ### Run multiple browsers in parallel
 
 Each `--session <name>` is an isolated browser with its own cookies, tabs, and refs. For agent skills, derive stable names with `agent-browser session id --scope worktree --prefix <skill>`. Useful for testing multi-user flows or parallel scraping:

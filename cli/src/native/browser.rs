@@ -1216,6 +1216,45 @@ impl BrowserManager {
         ))
     }
 
+    /// Ensure the active automation tab belongs to an exact native window.
+    /// If it does not, copy its current URL into a new tab in that window and
+    /// make the copy active. The source tab is left untouched.
+    pub async fn tab_ensure_window(&mut self, window_id: i64) -> Result<Value, String> {
+        let source_target_id = self.active_target_id()?.to_string();
+        let source_window: Value = self
+            .client
+            .send_command(
+                "Browser.getWindowForTarget",
+                Some(json!({ "targetId": source_target_id })),
+                None,
+            )
+            .await?;
+        let source_window_id = source_window
+            .get("windowId")
+            .and_then(Value::as_i64)
+            .ok_or("Browser.getWindowForTarget did not return a windowId")?;
+        let source_tab_id = format_tab_id(self.pages[self.active_page_index].tab_id);
+
+        if source_window_id == window_id {
+            return Ok(json!({
+                "copied": false,
+                "tabId": source_tab_id,
+                "windowId": window_id,
+            }));
+        }
+
+        let url = self.get_url().await?;
+        let created = self.tab_new(Some(&url), None, Some(window_id)).await?;
+        Ok(json!({
+            "copied": true,
+            "sourceTabId": source_tab_id,
+            "sourceWindowId": source_window_id,
+            "tabId": created.get("tabId"),
+            "url": url,
+            "windowId": window_id,
+        }))
+    }
+
     pub async fn tab_switch(&mut self, index: usize) -> Result<Value, String> {
         if index >= self.pages.len() {
             return Err(format!(

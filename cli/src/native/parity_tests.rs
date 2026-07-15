@@ -100,6 +100,7 @@ const DOCUMENTED_ACTIONS: &[&str] = &[
     "pdf",
     "tab_list",
     "tab_new",
+    "tab_ensure_window",
     "tab_switch",
     "tab_close",
     "viewport",

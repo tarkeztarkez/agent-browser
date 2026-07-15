@@ -1538,6 +1538,32 @@ fn parse_command_inner(args: &[String], flags: &Flags) -> Result<Value, ParseErr
                     Ok(cmd)
                 }
                 Some("list") => Ok(json!({ "id": id, "action": "tab_list" })),
+                Some("ensure-window") => {
+                    if rest.get(1) != Some(&"--window-id") {
+                        return Err(ParseError::MissingArguments {
+                            context: "tab ensure-window".to_string(),
+                            usage: "tab ensure-window --window-id <positive-id>",
+                        });
+                    }
+                    let value = rest.get(2).ok_or(ParseError::MissingArguments {
+                        context: "tab ensure-window --window-id".to_string(),
+                        usage: "tab ensure-window --window-id <positive-id>",
+                    })?;
+                    let window_id = value.parse::<i64>().map_err(|_| ParseError::InvalidValue {
+                        message: format!("Invalid native browser window id: {}", value),
+                        usage: "tab ensure-window --window-id <positive-id>",
+                    })?;
+                    if window_id <= 0 {
+                        return Err(ParseError::InvalidValue {
+                            message: format!(
+                                "Native browser window id must be positive: {}",
+                                value
+                            ),
+                            usage: "tab ensure-window --window-id <positive-id>",
+                        });
+                    }
+                    Ok(json!({ "id": id, "action": "tab_ensure_window", "windowId": window_id }))
+                }
                 Some("close") => {
                     let mut cmd = json!({ "id": id, "action": "tab_close" });
                     if let Some(tab_ref) = rest.get(1) {
@@ -4080,6 +4106,14 @@ mod tests {
             &default_flags(),
         )
         .is_err());
+    }
+
+    #[test]
+    fn test_tab_ensure_window() {
+        let cmd =
+            parse_command(&args("tab ensure-window --window-id 42"), &default_flags()).unwrap();
+        assert_eq!(cmd["action"], "tab_ensure_window");
+        assert_eq!(cmd["windowId"], 42);
     }
 
     #[test]

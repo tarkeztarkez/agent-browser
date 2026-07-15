@@ -325,6 +325,7 @@ agent-browser tab                              # List tabs (shows `tabId` and op
 agent-browser tab new [url]                    # New tab (optionally with URL)
 agent-browser tab new --label docs [url]       # New tab with a user-assigned label
 agent-browser tab new --window-id 42 [url]     # New tab in an exact native Chrome window
+agent-browser tab ensure-window --window-id 42 # Copy active tab URL there if needed
 agent-browser tab <t<N>|label>                 # Switch to a tab by id or label
 agent-browser tab close [t<N>|label]           # Close a tab (defaults to active)
 agent-browser window new                       # New window
@@ -343,6 +344,8 @@ agent-browser tab close docs         # close by label
 ```
 
 Use `--window-id` when connected to a multi-window Chrome instance and desktop focus must not decide where the tab opens. This option requires an installed extension context that can call `chrome.tabs.create`. The returned tab becomes agent-browser's active tab, so later commands remain bound to it even if the user focuses another browser window.
+
+`tab ensure-window --window-id <id>` leaves the active tab unchanged when it already belongs to that native window. Otherwise it leaves the source tab untouched, copies its current URL into a new tab in the requested window, and makes the copy active for subsequent automation.
 
 ### Frames
 

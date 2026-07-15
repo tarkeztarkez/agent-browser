@@ -2296,6 +2296,8 @@ Operations:
   new [url]                  Open a new tab
   new --label <name> [url]   Open a new tab with a label like `docs` or `app`
   new --window-id <id> [url] Open in an exact native Chrome window
+  ensure-window --window-id <id>
+                             Copy active tab URL there when it is elsewhere
   close [t<N>|label]         Close a tab (current if no ref given)
   <t<N>|label>               Switch to a tab by id or label
 
@@ -2310,6 +2312,7 @@ Examples:
   agent-browser tab new https://example.com
   agent-browser tab new --label docs https://docs.example.com
   agent-browser tab new --window-id 42 --label task https://example.com
+  agent-browser tab ensure-window --window-id 42
   agent-browser tab t2
   agent-browser tab docs
   agent-browser tab close

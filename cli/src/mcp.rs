@@ -91,6 +91,7 @@ const TOOL_COOKIES_SET: &str = "agent_browser_cookies_set";
 const TOOL_COOKIES_SET_CURL: &str = "agent_browser_cookies_set_curl";
 const TOOL_COOKIES_CLEAR: &str = "agent_browser_cookies_clear";
 const TOOL_TAB_NEW: &str = "agent_browser_tab_new";
+const TOOL_TAB_ENSURE_WINDOW: &str = "agent_browser_tab_ensure_window";
 const TOOL_TAB_LIST: &str = "agent_browser_tab_list";
 const TOOL_TAB_SWITCH: &str = "agent_browser_tab_switch";
 const TOOL_TAB_CLOSE: &str = "agent_browser_tab_close";
@@ -347,6 +348,7 @@ const CORE_PROFILE_TOOLS: &[&str] = &[
     TOOL_GET_URL,
     TOOL_GET_TITLE,
     TOOL_TAB_NEW,
+    TOOL_TAB_ENSURE_WINDOW,
     TOOL_TAB_LIST,
     TOOL_TAB_SWITCH,
     TOOL_TAB_CLOSE,
@@ -443,6 +445,7 @@ const TABS_PROFILE_TOOLS: &[&str] = &[
     TOOL_FORWARD,
     TOOL_RELOAD,
     TOOL_TAB_NEW,
+    TOOL_TAB_ENSURE_WINDOW,
     TOOL_TAB_LIST,
     TOOL_TAB_SWITCH,
     TOOL_TAB_CLOSE,
@@ -1225,6 +1228,13 @@ fn parity_tools() -> Vec<Value> {
                 }
             }),
             &[],
+        ),
+        tool(
+            TOOL_TAB_ENSURE_WINDOW,
+            "Tab ensure window",
+            "Copy the active tab URL into an exact native window when needed.",
+            json!({ "windowId": { "type": "integer", "minimum": 1 } }),
+            &["windowId"],
         ),
         tool(TOOL_TAB_LIST, "Tab list", "List tabs.", json!({}), &[]),
         tool(
@@ -2131,6 +2141,19 @@ fn call_tool(params: Option<&Value>, config: &McpConfig) -> Result<Value, Protoc
         TOOL_COOKIES_SET_CURL => call_cookies_set_curl(arguments),
         TOOL_COOKIES_CLEAR => call_literal(arguments, &["cookies", "clear"]),
         TOOL_TAB_NEW => call_tab_new(arguments),
+        TOOL_TAB_ENSURE_WINDOW => {
+            let window_id = required_u64(arguments, "windowId")?;
+            call_cli_tool(
+                arguments,
+                vec![
+                    "tab".to_string(),
+                    "ensure-window".to_string(),
+                    "--window-id".to_string(),
+                    window_id.to_string(),
+                ],
+                None,
+            )
+        }
         TOOL_TAB_LIST => call_literal(arguments, &["tab", "list"]),
         TOOL_TAB_SWITCH => call_one_string(arguments, "tab", "tab"),
         TOOL_TAB_CLOSE => call_optional_one(arguments, &["tab", "close"], "tab"),

@@ -1808,6 +1808,7 @@ pub async fn execute_command(cmd: &Value, state: &mut DaemonState) -> Value {
                     | "title"
                     | "tab_list"
                     | "tab_new"
+                    | "tab_ensure_window"
                     | "tab_switch"
                     | "tab_close"
             );
@@ -1882,6 +1883,7 @@ pub async fn execute_command(cmd: &Value, state: &mut DaemonState) -> Value {
         "pdf" => handle_pdf(cmd, state).await,
         "tab_list" => handle_tab_list(state).await,
         "tab_new" => handle_tab_new(cmd, state).await,
+        "tab_ensure_window" => handle_tab_ensure_window(cmd, state).await,
         "tab_switch" => handle_tab_switch(cmd, state).await,
         "tab_close" => handle_tab_close(cmd, state).await,
         "viewport" => handle_viewport(cmd, state).await,
@@ -2048,7 +2050,7 @@ pub async fn execute_command(cmd: &Value, state: &mut DaemonState) -> Value {
             // so screencasting always targets the correct page.
             if matches!(
                 action,
-                "tab_new" | "tab_switch" | "tab_close" | "open" | "navigate"
+                "tab_new" | "tab_ensure_window" | "tab_switch" | "tab_close" | "open" | "navigate"
             ) {
                 let session_id = mgr.active_session_id().ok().map(|s| s.to_string());
                 server.set_cdp_session_id(session_id).await;
@@ -4883,6 +4885,18 @@ async fn handle_tab_new(cmd: &Value, state: &mut DaemonState) -> Result<Value, S
     state.iframe_sessions.clear();
     state.active_frame_id = None;
     mgr.tab_new(url, label, window_id).await
+}
+
+async fn handle_tab_ensure_window(cmd: &Value, state: &mut DaemonState) -> Result<Value, String> {
+    let mgr = state.browser.as_mut().ok_or("Browser not launched")?;
+    let window_id = cmd
+        .get("windowId")
+        .and_then(Value::as_i64)
+        .ok_or("Missing positive 'windowId' parameter")?;
+    state.ref_map.clear();
+    state.iframe_sessions.clear();
+    state.active_frame_id = None;
+    mgr.tab_ensure_window(window_id).await
 }
 
 async fn handle_tab_switch(cmd: &Value, state: &mut DaemonState) -> Result<Value, String> {
